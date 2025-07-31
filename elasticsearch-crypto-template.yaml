@@ -1,0 +1,78 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: elasticsearch-index-template
+  namespace: elk-stack
+data:
+  setup-crypto-template.sh: |
+    #!/bin/bash
+    
+    echo "Configuration du template d'index pour les données crypto..."
+    
+    # Template pour les données Binance
+    curl -X PUT "http://elasticsearch:9200/_index_template/binance-trades" \
+      -u elastic:${ELASTIC_PASSWORD} \
+      -H "Content-Type: application/json" \
+      -d '{
+        "index_patterns": ["binance-trades-*"],
+        "priority": 1,
+        "template": {
+          "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0,
+            "refresh_interval": "5s",
+            "index.mapping.total_fields.limit": 2000
+          },
+          "mappings": {
+            "properties": {
+              "@timestamp": {
+                "type": "date"
+              },
+              "symbol": {
+                "type": "keyword"
+              },
+              "base_currency": {
+                "type": "keyword"
+              },
+              "price": {
+                "type": "double"
+              },
+              "normalized_price": {
+                "type": "double"
+              },
+              "quantity": {
+                "type": "double"
+              },
+              "trade_value_usdt": {
+                "type": "double"
+              },
+              "price_scale": {
+                "type": "keyword"
+              },
+              "price_category": {
+                "type": "keyword"
+              },
+              "trade_size": {
+                "type": "keyword"
+              },
+              "trade_direction": {
+                "type": "keyword"
+              },
+              "buyer_market_maker": {
+                "type": "boolean"
+              },
+              "timestamp_rounded_1m": {
+                "type": "date",
+                "format": "strict_date_optional_time"
+              },
+              "timestamp_rounded_5m": {
+                "type": "date", 
+                "format": "strict_date_optional_time"
+              }
+            }
+          }
+        }
+      }'
+    
+    echo ""
+    echo "Template configuré avec succès!"

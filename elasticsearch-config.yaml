@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: elasticsearch-config
+  namespace: elk-stack
+data:
+  elasticsearch.yml: |
+    cluster.name: "elasticsearch-cluster"
+    network.host: 0.0.0.0
+    discovery.type: single-node
+    xpack.security.enabled: true
+    xpack.security.transport.ssl.enabled: false
+    xpack.security.http.ssl.enabled: false
+    xpack.monitoring.collection.enabled: false
+    bootstrap.memory_lock: false
+    cluster.routing.allocation.disk.threshold_enabled: false
+    # License configuration - force basic license
+    xpack.license.self_generated.type: basic
+    # Additional license settings
+    xpack.security.authc.api_key.enabled: true
+    # Fix for single node setup
+    action.auto_create_index: "+*"
+  jvm.options: |
+    -Xms1200m
+    -Xmx1500m
+    -XX:+UseG1GC
+    -XX:G1HeapRegionSize=16m
+    -XX:+UnlockExperimentalVMOptions
+    -XX:+UseContainerSupport
+    -Djava.awt.headless=true
+    -Dfile.encoding=UTF-8

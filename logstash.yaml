@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logstash
+  namespace: elk-stack
+  labels:
+    app: logstash
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: logstash
+  template:
+    metadata:
+      labels:
+        app: logstash
+    spec:
+      containers:
+      - name: logstash
+        image: docker.elastic.co/logstash/logstash:8.11.1
+        ports:
+        - containerPort: 5044
+          name: beats
+        - containerPort: 5000
+          name: tcp
+        - containerPort: 8080
+          name: http
+        - containerPort: 9600
+          name: monitoring
+        env:
+        - name: LS_JAVA_OPTS
+          value: "-Xms1800m -Xmx1800m"
+        - name: ELASTICSEARCH_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: elk-credentials
+              key: elastic-password
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        volumeMounts:
+        - name: config
+          mountPath: /usr/share/logstash/config/logstash.yml
+          subPath: logstash.yml
+        - name: config
+          mountPath: /usr/share/logstash/config/pipelines.yml
+          subPath: pipelines.yml
+        - name: config
+          mountPath: /usr/share/logstash/pipeline/logstash.conf
+          subPath: logstash.conf
+        - name: binance-shared-storage
+          mountPath: /shared/data
+      volumes:
+      - name: config
+        configMap:
+          name: logstash-config-fixed
+      - name: binance-shared-storage
+        persistentVolumeClaim:
+          claimName: binance-shared-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: logstash
+  namespace: elk-stack
+  labels:
+    app: logstash
+spec:
+  selector:
+    app: logstash
+  ports:
+    - port: 5044
+      name: beats
+      targetPort: 5044
+    - port: 5000
+      name: tcp
+      targetPort: 5000
+    - port: 8080
+      name: http
+      targetPort: 8080
+    - port: 9600
+      name: monitoring
+      targetPort: 9600

@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kibana-config
+  namespace: elk-stack
+data:
+  kibana.yml: |
+    server.name: kibana
+    server.host: 0.0.0.0
+    elasticsearch.hosts: ["http://elasticsearch:9200"]
+    monitoring.ui.container.elasticsearch.enabled: true
+    xpack.security.enabled: true
+    xpack.encryptedSavedObjects.encryptionKey: "something_at_least_32_characters_long_for_saved_objects"
+    xpack.reporting.encryptionKey: "something_at_least_32_characters_long_for_reporting"
+    xpack.security.encryptionKey: "something_at_least_32_characters_long_for_security"
+    server.publicBaseUrl: "http://localhost:5601"
+    # Locale configuration
+    i18n.locale: "fr"
+    # Additional security settings
+    elasticsearch.ssl.verificationMode: none
+    server.ssl.enabled: false

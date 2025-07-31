@@ -1,0 +1,130 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logstash-config-fixed
+  namespace: elk-stack
+data:
+  logstash.yml: |
+    http.host: "0.0.0.0"
+    path.config: /usr/share/logstash/pipeline
+    xpack.monitoring.elasticsearch.hosts: ["http://elasticsearch:9200"]
+    xpack.monitoring.elasticsearch.username: "chater"
+    xpack.monitoring.elasticsearch.password: "${ELASTICSEARCH_PASSWORD}"
+    xpack.monitoring.enabled: true
+  pipelines.yml: |
+    - pipeline.id: main
+      path.config: "/usr/share/logstash/pipeline/logstash.conf"
+  logstash.conf: |
+    input {
+      tcp {
+        port => 5000
+        codec => json_lines
+      }
+      http {
+        port => 8080
+        codec => json
+      }
+      beats {
+        port => 5044
+      }
+      file {
+        path => "/shared/data/*.ndjson"
+        start_position => "beginning"
+        sincedb_path => "/tmp/sincedb_binance"
+        codec => json
+        type => "binance-trade"
+        tags => ["binance", "crypto", "websocket"]
+      }
+    }
+    
+    filter {
+      if ![timestamp] and ![@timestamp] {
+        mutate {
+          add_field => { "timestamp" => "%{@timestamp}" }
+        }
+      }
+      
+      if [message] and [message] =~ /^\{.*\}$/ {
+        json {
+          source => "message"
+          target => "parsed"
+        }
+        if [parsed] {
+          ruby {
+            code => "
+              parsed = event.get('parsed')
+              if parsed.is_a?(Hash)
+                parsed.each { |k, v| event.set(k, v) unless k == '@timestamp' }
+              end
+              event.remove('parsed')
+            "
+          }
+        }
+      }
+      
+      if [type] == "binance-trade" {
+        if [timestamp] {
+          date {
+            match => [ "timestamp", "ISO8601" ]
+            target => "@timestamp"
+          }
+        }
+        
+        mutate {
+          convert => { 
+            "price" => "float"
+            "quantity" => "float"
+            "trade_id" => "integer"
+            "buyer_market_maker" => "boolean"
+          }
+          add_tag => ["crypto-trade", "binance"]
+          add_field => { 
+            "data_source" => "binance-websocket"
+            "crypto_pair" => "%{symbol}"
+            "exchange" => "binance"
+          }
+        }
+        
+        if [price] and [quantity] {
+          ruby {
+            code => "
+              price = event.get('price')
+              quantity = event.get('quantity')
+              if price && quantity
+                trade_value_usdt = price * quantity
+                event.set('trade_value_usdt', trade_value_usdt)
+              end
+            "
+          }
+        }
+      }
+      
+      mutate {
+        add_tag => ["logstash-processed"]
+        add_field => { "processed_at" => "%{@timestamp}" }
+      }
+    }
+    
+    output {
+      if [type] == "binance-trade" {
+        elasticsearch {
+          hosts => ["elasticsearch:9200"]
+          user => "chater"
+          password => "${ELASTICSEARCH_PASSWORD}"
+          index => "binance-trades-%{+YYYY.MM.dd}"
+        }
+      } else {
+        elasticsearch {
+          hosts => ["elasticsearch:9200"]
+          user => "chater"
+          password => "${ELASTICSEARCH_PASSWORD}"
+          index => "logs-%{+YYYY.MM.dd}"
+        }
+      }
+      
+      stdout {
+        codec => rubydebug {
+          metadata => false
+        }
+      }
+    }
