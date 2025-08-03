@@ -15,17 +15,17 @@ spec:
     spec:
       containers:
       - name: binance-backend
-        image: belahssenchater/binance-backend:old
+        image: belahssenchater/binance-backend:01-08-2025-1
         imagePullPolicy: Always
         env:
         - name: LOGSTASH_URL
           value: http://logstash:8080
         resources:
           requests:
-            cpu: 1000m
+            cpu: 500m
             memory: 512Mi
           limits:
-            cpu: 1500m
+            cpu: 1000m
             memory: 1Gi
         volumeMounts:
         - name: binance-shared
