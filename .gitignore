@@ -1,7 +1,7 @@
 # Export files - generated data, not version controlled
-exports/
-*.csv
-*.json
+# exports/
+# *.csv
+# *.json
 
 # Temporary files
 /tmp/
