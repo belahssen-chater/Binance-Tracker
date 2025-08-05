@@ -1,0 +1,36 @@
+# Export files - generated data, not version controlled
+exports/
+*.csv
+*.json
+
+# Temporary files
+/tmp/
+*.tmp
+
+# Logs
+*.log
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Kubernetes secrets (if any)
+*-secret.yaml
+*-secrets.yaml
