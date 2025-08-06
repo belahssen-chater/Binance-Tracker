@@ -2,18 +2,21 @@
 
 # Export des données en JSON pour analyse ou backup
 # Usage: ./export-to-json.sh [index_name] [nombre_de_documents] [format]
+# Exemples:
+#   ./export-to-json.sh                           # Export 10000 docs en pretty
+#   ./export-to-json.sh binance-trades-* 50000    # Export 50000 docs en pretty
+#   ./export-to-json.sh binance-trades-* 10000 compact # Export en format compact
 
 ES_USER="chater" 
 ES_PASSWORD="Protel2025!"
 ES_HOST="localhost:9200"
 INDEX=${1:-"binance-trades-*"}
-LIMIT=${2:-5000}
+LIMIT=${2:-10000} # Nombre de documents à exporter (par défaut 10000)
 FORMAT=${3:-"pretty"} # pretty, compact, ndjson
 DATE=$(date +"%Y%m%d_%H%M%S")
 
 echo "📊 Export JSON des données..."
 echo "📋 Indice: $INDEX"
-echo "📊 Limite: $LIMIT documents"
 echo "📝 Format: $FORMAT"
 
 # Création du dossier exports
