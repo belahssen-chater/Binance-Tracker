@@ -1,7 +1,7 @@
 # Export files - generated data, not version controlled
-exports/
-*.csv
-*.json
+# exports/  # Commented out to allow versioning of export data
+# *.csv     # Commented out to allow CSV files (managed by Git LFS)
+# *.json    # Commented out to allow JSON files
 
 # Temporary files
 /tmp/
