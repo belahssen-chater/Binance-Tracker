@@ -1,7 +1,12 @@
 #!/bin/bash
 
-# Fixed script for exporting Bitcoin hourly data
-# Works with the actual Elasticsearch data structure
+# Script optimisé pour exporter toutes les données Bitcoin par heure
+# Fonctionne avec la structure de données Elasticsearch
+# Usage: ./export-bitcoin-hourly-fixed.sh [nombre_de_jours|all]
+# Exemples:
+#   ./export-bitcoin-hourly-fixed.sh       # Exporte toutes les données historiques
+#   ./export-bitcoin-hourly-fixed.sh 30    # Exporte les 30 derniers jours
+#   ./export-bitcoin-hourly-fixed.sh all   # Exporte toutes les données historiques
 
 set -e
 
@@ -22,8 +27,9 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}  📊 FIXED BITCOIN HOURLY EXPORT  ${NC}"
+echo -e "${BLUE}  📊 BITCOIN HOURLY DATA EXPORTER  ${NC}"
 echo -e "${BLUE}========================================${NC}"
+echo -e "${YELLOW}🔍 Ce script exporte toutes les données Bitcoin par heure${NC}"
 
 # Create export directory
 mkdir -p $EXPORT_DIR
@@ -51,11 +57,22 @@ check_elasticsearch() {
 
 # Export hourly aggregated data
 export_hourly_data() {
-    local period_days=${1:-30}  # Default: 30 days
-    local output_file="$EXPORT_DIR/BTCUSDT_hourly_data_${period_days}days_${DATE}_fixed.json"
-    local csv_file="$EXPORT_DIR/BTCUSDT_hourly_data_${period_days}days_${DATE}_fixed.csv"
+    local period_days=${1:-0}  # Default: 0 = all data
+    local period_label=""
+    local range_query=""
     
-    echo -e "${YELLOW}📊 Exporting Bitcoin hourly data (last $period_days days)...${NC}"
+    if [ "$period_days" -gt 0 ]; then
+        period_label="${period_days}days_"
+        range_query=',"range": {"@timestamp": {"gte": "now-'$period_days'd"}}'
+        echo -e "${YELLOW}📊 Exporting Bitcoin hourly data (last $period_days days)...${NC}"
+    else
+        period_label="alltime_"
+        echo -e "${YELLOW}📊 Exporting ALL Bitcoin hourly data...${NC}"
+    fi
+    
+    local output_file="$EXPORT_DIR/BTCUSDT_hourly_data_${period_label}${DATE}_fixed.json"
+    local csv_file="$EXPORT_DIR/BTCUSDT_hourly_data_${period_label}${DATE}_fixed.csv"
+    
     echo -e "${YELLOW}📋 Index: $INDEX${NC}"
     echo -e "${YELLOW}🪙 Symbol: $SYMBOL${NC}"
     
@@ -65,8 +82,8 @@ export_hourly_data() {
         "query": {
             "bool": {
                 "must": [
-                    {"term": {"symbol.keyword": "'$SYMBOL'"}},
-                    {"range": {"@timestamp": {"gte": "now-'$period_days'd"}}}
+                    {"term": {"symbol.keyword": "'$SYMBOL'"}}
+                    '"$range_query"'
                 ]
             }
         },
@@ -117,7 +134,7 @@ export_hourly_data() {
     echo -e "${YELLOW}🔄 Retrieving aggregated data...${NC}"
     
     curl -s -u $ES_USER:$ES_PASSWORD -H "Content-Type: application/json" \
-        -X POST "http://$ES_HOST/$INDEX/_search?timeout=60s" \
+        -X POST "http://$ES_HOST/$INDEX/_search?timeout=120s" \
         -d "$query" > "$output_file"
     
     # Check response
@@ -206,13 +223,18 @@ check_elasticsearch
 if [ $# -gt 0 ]; then
     if [[ "$1" =~ ^[0-9]+$ ]]; then
         export_hourly_data "$1"
+    elif [ "$1" = "all" ]; then
+        # Export all historical data
+        export_hourly_data 0
     else
         echo -e "${RED}❌ Invalid argument: $1${NC}"
-        echo -e "${YELLOW}Usage: $0 [number_of_days]${NC}"
-        echo -e "${YELLOW}Example: $0 30  # Export last 30 days${NC}"
+        echo -e "${YELLOW}Usage: $0 [number_of_days|all]${NC}"
+        echo -e "${YELLOW}Examples:${NC}"
+        echo -e "${YELLOW}  $0 30       # Export last 30 days${NC}"
+        echo -e "${YELLOW}  $0 all      # Export ALL historical data${NC}"
         exit 1
     fi
 else
-    # Default: 30 days
-    export_hourly_data 30
+    # Default: all data
+    export_hourly_data 0
 fi
