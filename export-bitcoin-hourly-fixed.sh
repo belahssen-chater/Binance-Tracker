@@ -41,16 +41,47 @@ check_elasticsearch() {
     # Check if we need to use kubectl port-forward
     if ! curl -s "http://localhost:9200" > /dev/null 2>&1; then
         echo -e "${YELLOW}⚡ Setting up connection to Kubernetes Elasticsearch...${NC}"
+        
+        # Kill any existing port-forward processes
+        pkill -f "kubectl port-forward.*elasticsearch.*9200" 2>/dev/null || true
+        
+        # Start port-forward in background
         kubectl port-forward -n elk-stack svc/elasticsearch 9200:9200 > /dev/null 2>&1 &
         PORT_FORWARD_PID=$!
-        sleep 3
-        trap "kill $PORT_FORWARD_PID 2>/dev/null" EXIT
+        
+        # Set up cleanup trap
+        trap "kill $PORT_FORWARD_PID 2>/dev/null; pkill -f 'kubectl port-forward.*elasticsearch.*9200' 2>/dev/null" EXIT
+        
+        # Wait for port-forward to be ready with retry logic
+        echo -e "${YELLOW}⏳ Waiting for port-forward to be ready...${NC}"
+        for i in {1..15}; do
+            if curl -s "http://localhost:9200" > /dev/null 2>&1; then
+                echo -e "${GREEN}✅ Port-forward established successfully${NC}"
+                break
+            fi
+            if [ $i -eq 15 ]; then
+                echo -e "${RED}❌ Port-forward failed to establish after 15 seconds${NC}"
+                exit 1
+            fi
+            sleep 1
+        done
     fi
     
+    # Test Elasticsearch connection with authentication
+    echo -e "${YELLOW}🔐 Testing Elasticsearch authentication...${NC}"
     if curl -s -u $ES_USER:$ES_PASSWORD http://$ES_HOST/_cluster/health > /dev/null; then
-        echo -e "${GREEN}✅ Elasticsearch connection OK${NC}"
+        # Get cluster status for additional info
+        CLUSTER_STATUS=$(curl -s -u $ES_USER:$ES_PASSWORD http://$ES_HOST/_cluster/health | jq -r '.status' 2>/dev/null || echo "unknown")
+        echo -e "${GREEN}✅ Elasticsearch connection OK (status: $CLUSTER_STATUS)${NC}"
     else
-        echo -e "${RED}❌ Elasticsearch connection error${NC}"
+        echo -e "${RED}❌ Elasticsearch authentication failed${NC}"
+        echo -e "${YELLOW}💡 Checking if Elasticsearch is accessible without auth...${NC}"
+        if curl -s http://$ES_HOST/_cluster/health > /dev/null; then
+            echo -e "${YELLOW}⚠️  Elasticsearch is accessible but authentication failed${NC}"
+            echo -e "${YELLOW}💡 Please check credentials: ES_USER=$ES_USER${NC}"
+        else
+            echo -e "${RED}❌ Elasticsearch is not accessible at all${NC}"
+        fi
         exit 1
     fi
 }
