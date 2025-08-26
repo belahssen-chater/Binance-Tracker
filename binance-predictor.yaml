@@ -1,0 +1,140 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: binance-predictor
+  namespace: elk-stack
+  labels:
+    app: binance-predictor
+    component: ml-prediction
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: binance-predictor
+  template:
+    metadata:
+      labels:
+        app: binance-predictor
+        component: ml-prediction
+    spec:
+      containers:
+      - name: predictor
+        image: python:3.11-slim
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/bash"]
+        args: ["-c", "cd /app && pip install -r requirements.txt && python realtime_prediction_service.py --predictions 1000 --interval 60"]
+        env:
+        - name: ELK_HOST
+          value: "elasticsearch"
+        - name: ELK_PORT
+          value: "9200"
+        - name: ELK_USER
+          value: "elastic"
+        - name: ELK_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: elk-credentials
+              key: password
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 1500m
+            memory: 2Gi
+        volumeMounts:
+        - name: predictor-config
+          mountPath: /app/elk_config.json
+          subPath: elk_config.json
+        - name: predictor-code
+          mountPath: /app/realtime_prediction_service.py
+          subPath: realtime_prediction_service.py
+        - name: predictor-code
+          mountPath: /app/requirements.txt
+          subPath: requirements.txt
+        - name: predictor-logs
+          mountPath: /app/logs
+        livenessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "import requests; exit(0)"
+          initialDelaySeconds: 30
+          periodSeconds: 60
+        readinessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "import requests; exit(0)"
+          initialDelaySeconds: 10
+          periodSeconds: 30
+      volumes:
+      - name: predictor-config
+        configMap:
+          name: predictor-config
+      - name: predictor-code
+        configMap:
+          name: predictor-code
+      - name: predictor-logs
+        emptyDir: {}
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: predictor-config
+  namespace: elk-stack
+data:
+  elk_config.json: |
+    {
+      "host": "elasticsearch",
+      "port": 9200,
+      "user": "elastic",
+      "password": "Protel2025!",
+      "use_ssl": false,
+      "verify_certs": false,
+      "index_pattern": "binance-trades-*",
+      "symbol": "BTCUSDT",
+      "default_lookback_hours": 48,
+      "max_records": 2000,
+      "model_config": {
+        "lookback_window": 10,
+        "min_training_samples": 50,
+        "validation_split": 0.8,
+        "xgboost_params": {
+          "n_estimators": 100,
+          "max_depth": 6,
+          "learning_rate": 0.1,
+          "subsample": 0.8,
+          "colsample_bytree": 0.8,
+          "random_state": 42
+        }
+      },
+      "realtime_config": {
+        "default_interval_seconds": 60,
+        "default_max_predictions": 1000,
+        "save_predictions": true,
+        "log_level": "INFO"
+      }
+    }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: binance-predictor
+  namespace: elk-stack
+  labels:
+    app: binance-predictor
+spec:
+  selector:
+    app: binance-predictor
+  ports:
+  - name: health
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  type: ClusterIP

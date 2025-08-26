@@ -1,0 +1,31 @@
+{
+  "host": "localhost",
+  "port": 9200,
+  "user": "elastic",
+  "password": "Protel2025!",
+  "use_ssl": false,
+  "verify_certs": false,
+  "index_pattern": "binance-trades-*",
+  "symbol": "BTCUSDT",
+  "default_lookback_hours": 48,
+  "max_records": 2000,
+  "model_config": {
+    "lookback_window": 10,
+    "min_training_samples": 50,
+    "validation_split": 0.8,
+    "xgboost_params": {
+      "n_estimators": 100,
+      "max_depth": 6,
+      "learning_rate": 0.1,
+      "subsample": 0.8,
+      "colsample_bytree": 0.8,
+      "random_state": 42
+    }
+  },
+  "realtime_config": {
+    "default_interval_seconds": 60,
+    "default_max_predictions": 10,
+    "save_predictions": true,
+    "log_level": "INFO"
+  }
+}

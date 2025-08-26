@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: binance-backend
-        image: belahssenchater/binance-backend:01-08-2025-1
+        image: belahssenchater/binance-backend:4
         imagePullPolicy: Always
         env:
         - name: LOGSTASH_URL

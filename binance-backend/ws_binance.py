@@ -25,24 +25,6 @@ LOGSTASH_URL = os.getenv('LOGSTASH_URL', 'http://logstash:8080')
 os.makedirs(NDJSON_DIR, exist_ok=True)
 os.makedirs(LOGS_DIR, exist_ok=True)
 
-def get_order_book(symbol):
-    try:
-        response = requests.get(
-            f"https://api.binance.com/api/v3/depth?symbol={symbol.upper()}&limit=5",
-            timeout=2
-        )
-        data = response.json()
-        bids = [[float(price), float(qty)] for price, qty in data['bids']]
-        asks = [[float(price), float(qty)] for price, qty in data['asks']]
-
-        spread = round(asks[0][0] - bids[0][0], 8) if bids and asks else None
-        spread_pct = round((spread / bids[0][0]) * 100, 6) if spread and bids[0][0] else None
-
-        return bids, asks, spread, spread_pct
-    except Exception as e:
-        print(f"[ORDER BOOK ERROR] {symbol.upper()} - {e}")
-        return [], [], None, None
-
 def send_to_logstash(trade_data):
     """Envoie les données de trade directement à Logstash via HTTP"""
     try:
@@ -61,9 +43,7 @@ def on_message(symbol):
     def handler(ws, message):
         data = json.loads(message)
         timestamp_utc = datetime.utcfromtimestamp(data['T'] / 1000)
-        timestamp_local = timestamp_utc.replace(tzinfo=pytz.utc).astimezone(pytz.timezone("Africa/Tunis"))
-
-        bids, asks, spread, spread_pct = get_order_book(symbol)
+        timestamp_local = timestamp_utc.replace(tzinfo=pytz.utc).astimezone(pytz.timezone("Europe/Paris"))
 
         trade = {
             "symbol": symbol.upper(),
@@ -73,28 +53,23 @@ def on_message(symbol):
             "quantity": float(data['q']),
             "trade_id": data['t'],
             "buyer_market_maker": data['m'],
-            "side": "sell" if data['m'] else "buy",
             "service": "binance-websocket",
             "level": "info",
             "message": f"Trade {symbol.upper()}: {data['p']} @ {data['q']}",
             "event_time": data['E'],
             "trade_time": data['T'],
-            "type": "binance-trade",
-            "bids": bids,
-            "asks": asks,
-            "spread": spread,
-            "spread_percentage": spread_pct
+            "type": "binance-trade"
         }
 
-        # Sauvegarde dans le fichier NDJSON
+        # Sauvegarde dans le fichier NDJSON (volume partagé)
         file_path = os.path.join(NDJSON_DIR, SYMBOLS[symbol])
         with open(file_path, "a") as f:
             f.write(json.dumps(trade) + "\n")
 
-        # Envoie à Logstash
+        # Envoie directement à Logstash (optionnel)
         send_to_logstash(trade)
 
-        print(f"[{symbol.upper()}] {timestamp_local.strftime('%H:%M:%S')} - {trade['side'].upper()} - Prix: {trade['price']} - Spread: {spread}")
+        print(f"[{symbol.upper()}] {timestamp_local.strftime('%H:%M:%S')} - Prix: {trade['price']}")
     return handler
 
 def on_error(ws, error):
@@ -127,7 +102,7 @@ if __name__ == "__main__":
     print("[START] Binance WebSocket to ELK Stack")
     print(f"[CONFIG] Logstash URL: {LOGSTASH_URL}")
     print(f"[CONFIG] Data directory: {NDJSON_DIR}")
-
+    
     threads = []
     for symbol in SYMBOLS:
         t = threading.Thread(target=start_stream, args=(symbol,))
